@@ -10,11 +10,14 @@ const server = http.createServer(app);
 // Updated Socket.IO configuration
 const io = socketIo(server, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-    credentials: false
+    origin: "*", 
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true
   },
-  transports: ['polling']
+  allowEIO3: true,
+  transports: ['polling'],
+  path: '/socket.io/'
 });
 
 app.use(cors());
@@ -24,6 +27,7 @@ app.use(express.json());
 const connectedStudents = new Map();
 const activePolls = new Map();
 const pollResults = new Map();
+const completedPolls = new Map(); // Store completed polls
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
@@ -165,15 +169,18 @@ io.on('connection', (socket) => {
     if (activePolls.has(pollId)) {
       const poll = activePolls.get(pollId);
       poll.active = false;
-      activePolls.set(pollId, poll);
-      
       const results = pollResults.get(pollId);
       
-      // Send final results with poll data
       io.emit('poll-ended', {
         pollId,
-        results,
-        poll // Include the full poll object
+        poll,
+        results
+      });
+      
+      // Store completed poll data
+      completedPolls.set(pollId, {
+        poll,
+        results
       });
       
       console.log('Poll ended:', poll.question);
