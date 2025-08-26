@@ -10,17 +10,22 @@ const server = http.createServer(app);
 // Updated Socket.IO configuration
 const io = socketIo(server, {
   cors: {
-    origin: "*", 
+    origin: ["http://localhost:5173", "https://your-frontend-domain.vercel.app"],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
   },
   allowEIO3: true,
-  transports: ['polling'],
+  transports: ['websocket', 'polling'],
   path: '/socket.io/'
 });
 
-app.use(cors());
+app.use(cors({
+  origin: ["http://localhost:5173", "https://your-frontend-domain.vercel.app"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}));
 app.use(express.json());
 
 // Store connected students and active polls
