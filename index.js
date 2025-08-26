@@ -2,198 +2,93 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
-require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 
-// Updated Socket.IO configuration
+// Basic CORS setup
+app.use(cors());
+
+// Simple health check endpoint
+app.get('/', (req, res) => {
+  res.send('Server is running');
+});
+
+// Socket.IO setup with basic config
 const io = socketIo(server, {
   cors: {
     origin: "*",
-    methods: ["GET", "POST"],
-    credentials: false
+    methods: ["GET", "POST"]
   },
-  transports: ['polling'],
-  allowEIO3: true,
-  pingTimeout: 60000,
-  pingInterval: 25000
+  transports: ['polling']
 });
 
-app.use(cors({
-  origin: ["http://localhost:5173", "https://your-frontend-domain.vercel.app"],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true
-}));
-app.use(express.json());
+// Store connected clients
+const students = new Map();
+let currentPoll = null;
 
-// Store connected students and active polls
-const connectedStudents = new Map();
-const activePolls = new Map();
-const pollResults = new Map();
-const completedPolls = new Map(); // Store completed polls
-
+// Socket event handlers
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  console.log('Client connected:', socket.id);
 
-  // Teacher connects
+  socket.on('student-join', (name) => {
+    students.set(socket.id, { id: socket.id, name });
+    io.emit('students-updated', Array.from(students.values()));
+  });
+
   socket.on('teacher-join', () => {
     socket.join('teachers');
-    console.log('Teacher joined:', socket.id);
-    
-    // Send current list of students to the teacher
-    io.to('teachers').emit('students-updated', Array.from(connectedStudents.values()));
   });
 
-  // Student connects
-  socket.on('student-join', (data) => {
-    const { name } = data;
-    const studentData = {
-      id: socket.id,
-      name: name,
-      joinedAt: new Date()
-    };
-    
-    // Store student
-    connectedStudents.set(socket.id, studentData);
-    socket.join('students');
-    
-    console.log('Student joined:', name, socket.id);
-    
-    // Notify all teachers about the new student
-    io.to('teachers').emit('student-joined', studentData);
-    io.to('teachers').emit('students-updated', Array.from(connectedStudents.values()));
-    
-    // Send current active poll to student if exists
-    if (activePolls.size > 0) {
-      const latestPoll = Array.from(activePolls.values()).pop();
-      socket.emit('new-poll', latestPoll);
-    }
-  });
-
-  // Teacher creates a poll
   socket.on('create-poll', (pollData) => {
-    const poll = {
-      id: Date.now().toString(),
-      ...pollData,
-      createdAt: new Date(),
-      startTime: new Date().toISOString(), // Add server start time
-      active: true
-    };
-    
-    activePolls.set(poll.id, poll);
-    pollResults.set(poll.id, {});
-    
-    console.log('Poll created:', poll.question);
-    
-    // Send to all students and teachers
-    io.emit('new-poll', poll);
-    
-    // Set timeout to end poll automatically
-    if (poll.duration > 0) {
-      setTimeout(() => {
-        if (activePolls.has(poll.id)) {
-          endPoll(poll.id);
-        }
-      }, poll.duration * 1000);
-    }
+    currentPoll = { ...pollData, id: Date.now(), startTime: Date.now() };
+    io.emit('new-poll', currentPoll);
   });
 
-  // Student submits answer
   socket.on('submit-answer', (data) => {
-    const { pollId, answer, studentName } = data;
-    const poll = activePolls.get(pollId);
-    
-    if (poll && poll.active) {
-      const results = pollResults.get(pollId);
-      results[socket.id] = {
-        studentName,
-        answer,
-        timestamp: new Date()
-      };
-      
-      pollResults.set(pollId, results);
-      
-      // Notify teachers about the answer
-      io.to('teachers').emit('student-answer', {
-        pollId,
-        studentId: socket.id,
-        studentName,
-        answer
-      });
-      
-      // Update results for teachers
-      io.to('teachers').emit('poll-results', {
-        pollId,
-        results: pollResults.get(pollId)
-      });
+    io.to('teachers').emit('student-answer', {
+      studentId: socket.id,
+      studentName: students.get(socket.id)?.name,
+      answer: data.answer
+    });
+  });
+
+  socket.on('end-poll', () => {
+    if (currentPoll) {
+      io.emit('poll-ended', { pollId: currentPoll.id });
+      currentPoll = null;
     }
   });
 
-  // Teacher ends poll manually
-  socket.on('end-poll', (pollId) => {
-    endPoll(pollId);
-  });
-
-  // Teacher removes student
-  socket.on('remove-student', (studentId) => {
-    if (connectedStudents.has(studentId)) {
-      const student = connectedStudents.get(studentId);
-      connectedStudents.delete(studentId);
-      
-      // Notify student they've been removed
-      io.to(studentId).emit('student-removed');
-      
-      // Notify teachers
-      io.to('teachers').emit('student-left', studentId);
-      io.to('teachers').emit('students-updated', Array.from(connectedStudents.values()));
-      
-      console.log('Student removed:', studentId);
-    }
-  });
-
-  // Handle disconnection
   socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-    
-    if (connectedStudents.has(socket.id)) {
-      const student = connectedStudents.get(socket.id);
-      connectedStudents.delete(socket.id);
-      
-      // Notify teachers about student disconnection
-      io.to('teachers').emit('student-left', socket.id);
-      io.to('teachers').emit('students-updated', Array.from(connectedStudents.values()));
-      
-      console.log('Student disconnected:', student.name);
+    console.log('Client disconnected:', socket.id);
+    if (students.has(socket.id)) {
+      students.delete(socket.id);
+      io.emit('students-updated', Array.from(students.values()));
     }
   });
-
-  // Helper function to end poll
-  function endPoll(pollId) {
-    if (activePolls.has(pollId)) {
-      const poll = activePolls.get(pollId);
-      poll.active = false;
-      const results = pollResults.get(pollId);
-      
-      io.emit('poll-ended', {
-        pollId,
-        poll,
-        results
-      });
-      
-      // Store completed poll data
-      completedPolls.set(pollId, {
-        poll,
-        results
-      });
-      
-      console.log('Poll ended:', poll.question);
-    }
-  }
 });
 
+// Error handling
+server.on('error', (err) => {
+  console.error('Server error:', err);
+});
+
+io.engine.on('connection_error', (err) => {
+  console.error('Socket.IO connection error:', err);
+});
+
+// Start server
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err);
 });
