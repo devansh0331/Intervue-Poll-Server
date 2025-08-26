@@ -8,10 +8,13 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ["http://localhost:3000","http://localhost:5173", "https://intervue-poll.vercel.app"], // Update with your frontend URL
+    origin: "*",
     methods: ["GET", "POST"],
+    allowedHeaders: ["my-custom-header"],
     credentials: true
-  }
+  },
+  transports: ['websocket', 'polling'],
+  path: '/socket.io'
 });
 
 app.use(cors());
