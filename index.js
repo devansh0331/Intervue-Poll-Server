@@ -9,14 +9,17 @@ const server = http.createServer(app);
 
 // Updated Socket.IO configuration
 const io = socketIo(server, {
-  pingTimeout: 60000,
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
-    credentials: true
+    credentials: false
   },
-  allowEIO3: true,
-  transports: ['websocket', 'polling']
+  path: '/socket.io/',
+  transports: ['polling', 'websocket'],
+  allowUpgrades: true,
+  upgradeTimeout: 10000,
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 app.use(cors());
