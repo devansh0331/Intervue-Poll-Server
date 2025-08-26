@@ -10,11 +10,11 @@ const server = http.createServer(app);
 // Updated Socket.IO configuration
 const io = socketIo(server, {
   cors: {
-    origin: "*",
+    origin: ["http://localhost:5173"],
     methods: ["GET", "POST"],
-    credentials: false
+    credentials: true
   },
-   transports: [ 'polling'],
+   transports: ['websocket', 'polling'],
   allowEIO3: true,
   // pingTimeout: 60000,
   // pingInterval: 25000
