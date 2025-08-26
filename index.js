@@ -10,14 +10,14 @@ const server = http.createServer(app);
 // Updated Socket.IO configuration
 const io = socketIo(server, {
   cors: {
-    origin: ["http://localhost:5173" , "https://your-frontend-domain.vercel.app"],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true
+    origin: "*",
+    methods: ["GET", "POST"],
+    credentials: false
   },
+  transports: ['polling'],
   allowEIO3: true,
-  transports: ['websocket', 'polling'],
-  path: '/socket.io/'
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 app.use(cors({
