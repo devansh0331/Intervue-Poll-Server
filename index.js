@@ -10,7 +10,7 @@ const server = http.createServer(app);
 // Updated Socket.IO configuration
 const io = socketIo(server, {
   cors: {
-    origin: ["http://localhost:5173", "https://intervue-poll-devansh.vercel.app"],
+    origin: ["http://localhost:5173", "https://intervue-poll-client.up.railway.app"],
     methods: ["GET", "POST"],
     credentials: true
   },
