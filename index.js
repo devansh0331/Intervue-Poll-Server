@@ -14,12 +14,11 @@ const io = socketIo(server, {
     methods: ["GET", "POST"],
     credentials: false
   },
-  path: '/socket.io/',
-  transports: ['polling', 'websocket'],
-  allowUpgrades: true,
-  upgradeTimeout: 10000,
-  pingTimeout: 60000,
-  pingInterval: 25000
+  transports: ['polling'],
+  pingTimeout: 30000,
+  pingInterval: 10000,
+  upgradeTimeout: 30000,
+  allowUpgrades: false
 });
 
 app.use(cors());
