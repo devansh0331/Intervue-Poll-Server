@@ -6,15 +6,17 @@ require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
+
+// Updated Socket.IO configuration
 const io = socketIo(server, {
+  pingTimeout: 60000,
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
-    allowedHeaders: ["my-custom-header"],
     credentials: true
   },
-  transports: ['websocket', 'polling'],
-  path: '/socket.io'
+  allowEIO3: true,
+  transports: ['websocket', 'polling']
 });
 
 app.use(cors());
